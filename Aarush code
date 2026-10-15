@@ -26,7 +26,7 @@ def drive(left_speed, right_speed):
 
 def near_edge(): 
     c = ev3_colorSensorGetColor(color)
-    # Yellow = 4, White = 6
+    # Yellow = 4, White = 6, red = 5
     return c == 4 or c == 6 or c == 5
 
 
@@ -61,7 +61,7 @@ while time_time() - start < MATCH_TIME:
     if state != "start" and state != "edge" and state != "turn":
         if near_edge():
             state = "edge"
-            until = now + 5
+            until = now + 2
             last_edge = now
             direction = -direction
             print("EDGE!")
