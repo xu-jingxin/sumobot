@@ -5,8 +5,8 @@ color = ev3_colorSensor()
 # SETTINGS
 MATCH_TIME = 60000 
 DETECT_DISTANCE = 40
-CRUISE_SPEED = 400 
-CHARGE_SPEED = 800 
+CRUISE_SPEED = 1000 
+CHARGE_SPEED = 1000 
 RUN_SPEED = 500 
 TURN_SPEED = 1000
 # Short commands allow frequent sensor checks
@@ -130,8 +130,8 @@ while time_time() - start < MATCH_TIME:
     # CIRCLE: SEARCH FOR OPPONENT
     # ---------------------------------
     
-    else:
-    
+    else: 
+        # charge
         if distance > 0 and distance < DETECT_DISTANCE and now - last_edge > 1800:
             print("CHARGE!")
     
@@ -140,13 +140,13 @@ while time_time() - start < MATCH_TIME:
     
             drive(CHARGE_SPEED, CHARGE_SPEED)
     
-        else:
-            # Change circling direction periodically
+        else: # turn while change circling direction periodically
+            print("turning")
             if now >= next_direction_change:
                 direction = -direction
                 next_direction_change = now + 10
     
             drive(
-                -CRUISE_SPEED - 25 * direction,
-                -CRUISE_SPEED + 25 * direction
+                -CRUISE_SPEED * direction,
+                -CRUISE_SPEED * direction
             )
