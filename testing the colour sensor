@@ -1,3 +1,313 @@
-white: 4 
-yellow: 7
-red: 5 (correct)
+left = ev3_motorA()
+right = ev3_motorD()
+
+ultrasonic = ev3_ultrasonicSensor()
+color = ev3_colorSensor()
+
+# =====================================
+# SETTINGS
+# =====================================
+
+# Both positive speeds must move
+# the robot FORWARD toward the shovel.
+LEFT_SIGN = 1
+RIGHT_SIGN = 1
+
+DETECT_DISTANCE = 40
+TAG_DISTANCE = 14
+
+START_SPEED = 750
+INWARD_SPEED = 420
+CHARGE_SPEED = 650
+PUSH_SPEED = 500
+ESCAPE_SPEED = 450
+TURN_SPEED = 500
+
+# Milliseconds
+# Refresh commands before they expire
+# to reduce jerky movement.
+COMMAND_TIME = 300
+STEP = 80
+
+# Seconds
+START_MIN_TIME = 0.65
+START_MAX_TIME = 1.30
+INWARD_TIME = 0.35
+
+CHARGE_TIME = 0.55
+TAG_LOST_TIME = 0.30
+
+BACK_MIN_TIME = 0.30
+BACK_MAX_TIME = 0.65
+
+# Calibrate for approximately 180 degrees.
+TURN_TIME = 0.70
+
+
+# =====================================
+# MOVEMENT
+# =====================================
+
+def drive(l, r):
+    ev3_runForTime(
+        left, COMMAND_TIME, l * LEFT_SIGN
+    )
+    ev3_runForTime(
+        right, COMMAND_TIME, r * RIGHT_SIGN
+    )
+    ev3_pause(STEP)
+
+
+# =====================================
+# INITIAL VARIABLES
+# =====================================
+
+start = time_time()
+
+state = "start"
+until = start + START_MAX_TIME
+
+previous_color = ev3_colorSensorGetColor(color)
+last_inner = start - 10
+
+escape_started = start
+safe_count = 0
+tag_count = 0
+last_tag_seen = start
+
+turn_direction = 1
+
+print("ROBOT STARTED")
+
+
+# =====================================
+# MAIN LOOP - RUN UNTIL STOP
+# =====================================
+
+while True:
+
+    now = time_time()
+
+    c = ev3_colorSensorGetColor(color)
+    distance = ev3_ultrasonicSensorDistance(
+        ultrasonic
+    )
+
+    # =================================
+    # COLOUR / EDGE DETECTION
+    # =================================
+
+    # 6 = White boundary
+    # 5 = Red OR purple centre
+    # 4 = Yellow
+    # 3 = Green
+    # 2 / 1 = Inner rings
+
+    if c == 1 or c == 2:
+        last_inner = now
+
+    # React to green only if coming
+    # from the inner cyan/blue rings.
+    # Green during the opening is fine.
+    edge = (
+        c == 4 or
+        c == 6 or
+        (c == 3 and
+         (previous_color == 1 or
+          previous_color == 2)) or
+        (c == 5 and
+         (previous_color == 3 or
+          previous_color == 4))
+    )
+
+    previous_color = c
+
+    # =================================
+    # CAUTIOUSLY ARM EDGE DETECTION
+    # AFTER THE INWARD START
+    # =================================
+
+    if state == "start":
+
+        # Initial heading must face inward.
+        # Move quickly away from starting edge.
+
+        if (
+            now - start >= START_MIN_TIME and
+            (c == 1 or c == 2 or c == 3)
+        ):
+            state = "inward"
+            until = now + INWARD_TIME
+
+        elif now - start >= START_MAX_TIME:
+
+            if c == 4 or c == 6:
+                state = "backoff"
+                escape_started = now
+                safe_count = 0
+            else:
+                state = "inward"
+                until = now + INWARD_TIME
+
+    # =================================
+    # EDGE OVERRIDES EVERYTHING
+    # =================================
+
+    elif edge and state != "backoff":
+
+        print("EDGE! REVERSING")
+
+        state = "backoff"
+        escape_started = now
+        safe_count = 0
+        tag_count = 0
+
+    # =================================
+    # STATE: START
+    # =================================
+
+    if state == "start":
+
+        l = START_SPEED
+        r = START_SPEED
+
+    # =================================
+    # STATE: BACK AWAY FROM EDGE
+    # =================================
+
+    elif state == "backoff":
+
+        l = -ESCAPE_SPEED
+        r = -ESCAPE_SPEED
+
+        if c == 1 or c == 2 or c == 3:
+            safe_count = safe_count + 1
+        else:
+            safe_count = 0
+
+        if (
+            now - escape_started >= BACK_MIN_TIME and
+            safe_count >= 2
+        ):
+            state = "turn"
+            until = now + TURN_TIME
+
+        elif now - escape_started >= BACK_MAX_TIME:
+            state = "turn"
+            until = now + TURN_TIME
+
+    # =================================
+    # STATE: TURN AWAY FROM EDGE
+    # =================================
+
+    elif state == "turn":
+
+        l = turn_direction * TURN_SPEED
+        r = -turn_direction * TURN_SPEED
+
+        if now >= until:
+            turn_direction = -turn_direction
+            state = "inward"
+            until = now + INWARD_TIME
+
+    # =================================
+    # STATE: MOVE FURTHER INWARD
+    # =================================
+
+    elif state == "inward":
+
+        l = INWARD_SPEED
+        r = INWARD_SPEED
+
+        if now >= until:
+            state = "scan"
+
+    # =================================
+    # STATE: SCAN IN PLACE
+    # =================================
+
+    elif state == "scan":
+
+        # Do not blindly drive toward
+        # the edge while searching.
+        l = TURN_SPEED * turn_direction
+        r = -TURN_SPEED * turn_direction
+
+        safe_to_attack = (
+            c == 1 or
+            c == 2 or
+            (c == 5 and now - last_inner < 0.4)
+        )
+
+        if (
+            safe_to_attack and
+            distance > 0 and
+            distance < DETECT_DISTANCE
+        ):
+            print("CHARGE!")
+
+            state = "charge"
+            until = now + CHARGE_TIME
+            tag_count = 0
+
+            l = CHARGE_SPEED
+            r = CHARGE_SPEED
+
+    # =================================
+    # STATE: CHARGE WITH SHOVEL
+    # =================================
+
+    elif state == "charge":
+
+        l = CHARGE_SPEED
+        r = CHARGE_SPEED
+
+        if (
+            distance > 0 and
+            distance < TAG_DISTANCE
+        ):
+            tag_count = tag_count + 1
+        else:
+            tag_count = 0
+
+        if tag_count >= 2:
+            print("TAGGED")
+
+            state = "push"
+            last_tag_seen = now
+
+            l = PUSH_SPEED
+            r = PUSH_SPEED
+
+        elif now >= until:
+            state = "scan"
+
+            l = TURN_SPEED * turn_direction
+            r = -TURN_SPEED * turn_direction
+
+    # =================================
+    # STATE: KEEP PUSHING
+    # =================================
+
+    elif state == "push":
+
+        l = PUSH_SPEED
+        r = PUSH_SPEED
+
+        if (
+            distance > 0 and
+            distance < 22
+        ):
+            last_tag_seen = now
+
+        if now - last_tag_seen > TAG_LOST_TIME:
+            state = "scan"
+
+            l = TURN_SPEED * turn_direction
+            r = -TURN_SPEED * turn_direction
+
+    # =================================
+    # EXECUTE ONE MOTOR UPDATE
+    # =================================
+
+    drive(l, r)
