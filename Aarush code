@@ -1,44 +1,49 @@
-left = ev3_motorB() 
+left = ev3_motorA() 
 right = ev3_motorD()
 ultrasonic = ev3_ultrasonicSensor() 
 color = ev3_colorSensor()
 # SETTINGS
 MATCH_TIME = 60000 
 DETECT_DISTANCE = 40
-CRUISE_SPEED = 140 
-CHARGE_SPEED = 280 
-RUN_SPEED = 200 
-TURN_SPEED = 210
+CRUISE_SPEED = 1400 
+CHARGE_SPEED = 2800 
+RUN_SPEED = 500 
+TURN_SPEED = 1000
 # Short commands allow frequent sensor checks
-STEP = 80 
-COMMAND_TIME = 150
+STEP = 200 
+COMMAND_TIME = 1500
 # Change after measuring an actual 180-degree turn
 
-TURN_180_TIME = 1800
+TURN_180_TIME = 5
 # =====================================
 # MOVEMENT
 # =====================================
 def drive(left_speed, right_speed): 
+    print("driving")
     ev3_runForTime(left, COMMAND_TIME, left_speed) 
     ev3_runForTime(right, COMMAND_TIME, right_speed) 
     ev3_pause(STEP)
+    return
 def near_edge(): 
     c = ev3_colorSensorGetColor(color)
     # Yellow = 4, White = 6
-    return c == 4 or c == 6
+    return c == 4 or c == 6 or c == 5
 # =====================================
 # MAIN PROGRAM
 # =====================================
-start = time_time()
+start = time_time() # in seconds
+print("start time: ", start) 
 state = "start" 
-until = start + 1200
+until = start
 direction = 1 
 last_edge = start 
-next_direction_change = start + 2500
+next_direction_change = start + 10
 print("SUMO STARTED")
+previous_colour = ev3_colorSensorGetColor(color)
+
 while time_time() - start < MATCH_TIME:
-    
     now = time_time()
+    print("state: ", state)
     distance = ev3_ultrasonicSensorDistance(ultrasonic)
     
     # ---------------------------------
@@ -48,7 +53,7 @@ while time_time() - start < MATCH_TIME:
     if state != "start" and state != "edge" and state != "turn":
         if near_edge():
             state = "edge"
-            until = now + 850
+            until = now + 5
             last_edge = now
             direction = -direction
             print("EDGE!")
@@ -69,7 +74,17 @@ while time_time() - start < MATCH_TIME:
     
     elif state == "edge":
         drive(190, 190)
-    
+        
+        current_colour = ev3_colorSensorGetColor(color)
+        print("current color: ", current_colour, 
+        "previous colour: ", previous_color)
+        
+        if current_colour > previous_color:
+            direction = -direction
+        previous_color = current_colour
+
+        print(now, until)
+        
         if now >= until:
             state = "turn"
             until = now + TURN_180_TIME
@@ -114,7 +129,7 @@ while time_time() - start < MATCH_TIME:
             print("CHARGE!")
     
             state = "charge"
-            until = now + 500
+            until = now + 10
     
             drive(CHARGE_SPEED, CHARGE_SPEED)
     
@@ -122,7 +137,7 @@ while time_time() - start < MATCH_TIME:
             # Change circling direction periodically
             if now >= next_direction_change:
                 direction = -direction
-                next_direction_change = now + 2500
+                next_direction_change = now + 5
     
             drive(
                 -CRUISE_SPEED - 25 * direction,
