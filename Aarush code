@@ -14,6 +14,7 @@ STEP = 200
 COMMAND_TIME = 1500
 # Change after measuring an actual 180-degree turn
 
+REVERSE_TIME = 1.5
 TURN_180_TIME = 0.5
 # =====================================
 # MOVEMENT
@@ -61,7 +62,7 @@ while time_time() - start < MATCH_TIME:
     if state != "start" and state != "edge" and state != "turn":
         if near_edge():
             state = "edge"
-            until = now + 2
+            until = now + 1 # lag time
             last_edge = now
             direction = -direction
             print("EDGE!")
@@ -82,19 +83,19 @@ while time_time() - start < MATCH_TIME:
     
     elif state == "edge":
         drive(190, 190)
-        current_colour = ev3_colorSensorGetColor(color)
-        print("current color: ", current_colour, "previous colour: ", previous_color)
+        # current_colour = ev3_colorSensorGetColor(color)
+        # print("current color: ", current_colour, "previous colour: ", previous_color)
 
-        if current_colour > previous_color:
-            direction = -direction
-            print("change direction 2")
-        previous_color = current_colour
+        # if current_colour > previous_color:
+        #     direction = -direction
+        #     print("change direction 2")
+        # previous_color = current_colour
 
-        print(now, until)
+        # print(now, until)
         
         if now >= until:
-            state = "turn"
-            until = now + TURN_180_TIME
+            state = "circle"
+            until = now + REVERSE_TIME
     
     elif state == "turn":
         drive(
