@@ -1,0 +1,130 @@
+left = ev3_motorB() 
+right = ev3_motorD()
+ultrasonic = ev3_ultrasonicSensor() 
+color = ev3_colorSensor()
+# SETTINGS
+MATCH_TIME = 60000 
+DETECT_DISTANCE = 40
+CRUISE_SPEED = 140 
+CHARGE_SPEED = 280 
+RUN_SPEED = 200 
+TURN_SPEED = 210
+# Short commands allow frequent sensor checks
+STEP = 80 
+COMMAND_TIME = 150
+# Change after measuring an actual 180-degree turn
+
+TURN_180_TIME = 1800
+# =====================================
+# MOVEMENT
+# =====================================
+def drive(left_speed, right_speed): 
+    ev3_runForTime(left, COMMAND_TIME, left_speed) 
+    ev3_runForTime(right, COMMAND_TIME, right_speed) 
+    ev3_pause(STEP)
+def near_edge(): 
+    c = ev3_colorSensorGetColor(color)
+    # Yellow = 4, White = 6
+    return c == 4 or c == 6
+# =====================================
+# MAIN PROGRAM
+# =====================================
+start = time_time()
+state = "start" 
+until = start + 1200
+direction = 1 
+last_edge = start 
+next_direction_change = start + 2500
+print("SUMO STARTED")
+while time_time() - start < MATCH_TIME:
+    
+    now = time_time()
+    distance = ev3_ultrasonicSensorDistance(ultrasonic)
+    
+    # ---------------------------------
+    # PRIORITY 1: AVOID BOUNDARY
+    # ---------------------------------
+    
+    if state != "start" and state != "edge" and state != "turn":
+        if near_edge():
+            state = "edge"
+            until = now + 850
+            last_edge = now
+            direction = -direction
+            print("EDGE!")
+    
+    # ---------------------------------
+    # START: MOVE INTO ARENA
+    # ---------------------------------
+    
+    if state == "start":
+        drive(170, 170)
+    
+        if now >= until:
+            state = "circle"
+    
+    # ---------------------------------
+    # EDGE: MOVE TOWARD INTERIOR
+    # ---------------------------------
+    
+    elif state == "edge":
+        drive(190, 190)
+    
+        if now >= until:
+            state = "turn"
+            until = now + TURN_180_TIME
+    
+    elif state == "turn":
+        drive(
+            direction * TURN_SPEED,
+            -direction * TURN_SPEED
+        )
+    
+        if now >= until:
+            state = "circle"
+    
+    # ---------------------------------
+    # CHARGE: PUSH WITH FIXED SHOVEL
+    # ---------------------------------
+    
+    elif state == "charge":
+        drive(CHARGE_SPEED, CHARGE_SPEED)
+    
+        if now >= until:
+            state = "run"
+            until = now + 350
+    
+    # ---------------------------------
+    # RUN: RETREAT AFTER ATTACK
+    # ---------------------------------
+    
+    elif state == "run":
+        drive(-RUN_SPEED, -RUN_SPEED)
+    
+        if now >= until:
+            state = "circle"
+    
+    # ---------------------------------
+    # CIRCLE: SEARCH FOR OPPONENT
+    # ---------------------------------
+    
+    else:
+    
+        if distance > 0 and distance < DETECT_DISTANCE and now - last_edge > 1800:
+            print("CHARGE!")
+    
+            state = "charge"
+            until = now + 500
+    
+            drive(CHARGE_SPEED, CHARGE_SPEED)
+    
+        else:
+            # Change circling direction periodically
+            if now >= next_direction_change:
+                direction = -direction
+                next_direction_change = now + 2500
+    
+            drive(
+                -CRUISE_SPEED - 25 * direction,
+                -CRUISE_SPEED + 25 * direction
+            )
