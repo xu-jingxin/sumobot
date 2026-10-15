@@ -5,8 +5,8 @@ color = ev3_colorSensor()
 # SETTINGS
 MATCH_TIME = 60000 
 DETECT_DISTANCE = 40
-CRUISE_SPEED = 1400 
-CHARGE_SPEED = 2800 
+CRUISE_SPEED = 400 
+CHARGE_SPEED = 800 
 RUN_SPEED = 500 
 TURN_SPEED = 1000
 # Short commands allow frequent sensor checks
@@ -14,31 +14,40 @@ STEP = 200
 COMMAND_TIME = 1500
 # Change after measuring an actual 180-degree turn
 
-TURN_180_TIME = 5
+TURN_180_TIME = 0.5
 # =====================================
 # MOVEMENT
 # =====================================
 def drive(left_speed, right_speed): 
-    print("driving")
     ev3_runForTime(left, COMMAND_TIME, left_speed) 
     ev3_runForTime(right, COMMAND_TIME, right_speed) 
     ev3_pause(STEP)
+    print("driving")
+
 def near_edge(): 
     c = ev3_colorSensorGetColor(color)
     # Yellow = 4, White = 6
     return c == 4 or c == 6 or c == 5
+
+
+# while True:
+#     print(ev3_colorSensorGetColor(color))
+#     ev3_pause(500)
+
 # =====================================
 # MAIN PROGRAM
 # =====================================
+
+    
 start = time_time() # in seconds
 print("start time: ", start) 
 state = "start" 
-until = start
+until = start + 2
 direction = 1 
 last_edge = start 
-next_direction_change = start + 10
+next_direction_change = start + 5
 print("SUMO STARTED")
-previous_colour = ev3_colorSensorGetColor(color)
+previous_color = ev3_colorSensorGetColor(color)
 
 while time_time() - start < MATCH_TIME:
     now = time_time()
@@ -73,13 +82,12 @@ while time_time() - start < MATCH_TIME:
     
     elif state == "edge":
         drive(190, 190)
-        
         current_colour = ev3_colorSensorGetColor(color)
-        print("current color: ", current_colour, 
-        "previous colour: ", previous_color)
-        
+        print("current color: ", current_colour, "previous colour: ", previous_color)
+
         if current_colour > previous_color:
             direction = -direction
+            print("change direction 2")
         previous_color = current_colour
 
         print(now, until)
@@ -106,7 +114,7 @@ while time_time() - start < MATCH_TIME:
     
         if now >= until:
             state = "run"
-            until = now + 350
+            until = now + 10
     
     # ---------------------------------
     # RUN: RETREAT AFTER ATTACK
@@ -136,7 +144,7 @@ while time_time() - start < MATCH_TIME:
             # Change circling direction periodically
             if now >= next_direction_change:
                 direction = -direction
-                next_direction_change = now + 5
+                next_direction_change = now + 10
     
             drive(
                 -CRUISE_SPEED - 25 * direction,
